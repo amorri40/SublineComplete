@@ -1,5 +1,8 @@
 #simple line reading into a mysql database
-import MySQLdb
+import sys
+sys.path.append("..") #import python modules in parent directory
+
+import pymysql
 import dbSettings
 import glob
 import os
@@ -8,14 +11,11 @@ import ast
 
 db = dbSettings.mysql_connect()
 db_cursor = db.cursor()
-table_name = "pythonline"
+syntax_name = "python"
+table_name = syntax_name+"_line"
 hash_counts = dict()
 
 folders = ["/System/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/"]
-
-
-#use the first 3 letters as a guide
-num_of_letters = 3
 
 
 def getCount(hash_line):
@@ -33,11 +33,6 @@ def parse_folder(folder_name):
         for line in lines:
             if line == '':
                 continue
-            #try:
-            #    tree = ast.parse(line)
-#
-#            except Exception:
-#                continue
 
             full_spaces = line
             full_no_spaces = ''.join(line.split())
@@ -50,7 +45,19 @@ def parse_folder(folder_name):
               [(hash_line, full_no_spaces, full_spaces, count)]
               )
 
+def createTable(c,tableName):
+    print "createtable:"+tableName
+    c.execute("""CREATE TABLE IF NOT EXISTS `"""+tableName+"""` (
+      `hash_line` varchar(32) NOT NULL,
+      `Full_No_Spaces` text NOT NULL,
+      `Full_spaces` text NOT NULL,
+      `count` int NOT NULL,
+      UNIQUE KEY `hash_line` (`hash_line`)
+    ) ENGINE=MyISAM DEFAULT CHARSET=latin1;""");
+
 
 if __name__ == '__main__':
+    createTable(db_cursor,table_name)
     for folder in folders:
         parse_folder(folder)
+
