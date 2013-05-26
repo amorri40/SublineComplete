@@ -28,6 +28,7 @@
 
 import sublime, sublime_plugin, re, sys, os, pprint
 from SublineComplete import syntaxSettings
+from time import time
 
 try:
     import pymysql
@@ -43,6 +44,8 @@ output_area="window" #window or console
 output_layout="column" #row or column
 outputView=0;
 output_view=0;
+time_of_last_completion=time()
+previous_completion=""
    
 class printtooutputwindowCommand(sublime_plugin.TextCommand):
     current_location=0
@@ -115,16 +118,22 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
         return None
 
     def on_modified_async(self, view):
+        global time_of_last_completion,previous_completion
+        if ((time()-time_of_last_completion)<1): return
+        time_of_last_completion=time()
         DBLineComplete.createWindow(view)
         syntax_name = DBLineComplete.getSyntaxName(view)
         if DBLineComplete.isSyntaxSupported(syntax_name) == False: return
- 
+                                    
         path = view.file_name()
         region = sublime.Region(0, view.size())
         lines = view.lines(region)
         target = view.line(view.sel()[0].begin())
         target = view.substr(target)
         target = target.strip() 
+        
+        if previous_completion == target: return #no point in displaying the same completion
+        previous_completion = target
         
         matches=DBLineComplete.text_python_line_database(target,syntax_name)
         if len(matches)<1: 
@@ -214,7 +223,7 @@ def printToOutput(print_string,end="\n",flush=False):
         output_view.run_command("printtooutputwindow",{'print_string':print_string, 'ending':ending, 'flush':flush})
     else:
         print (print_string,end=ending)
-           
+            
 def escape_characters(string):
             line = ''.join(string.split())
             line = line.replace('"','\\"').replace("'","\\'") .replace("%","\\%").replace("\\%\\%\\%","%").replace("_","\\_")
