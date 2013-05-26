@@ -52,11 +52,12 @@ class printtooutputwindowCommand(sublime_plugin.TextCommand):
     output_text=""
 
     def run(self,edit):
-        return run(self,edit,"","\n")
+        return run(self,edit,"","")
 
     def run(self, edit,print_string,ending,flush=False):
-        self.output_text+=print_string+ending
-        #print (print_string,end=ending)
+        if len(print_string)>1:
+            self.output_text+=print_string+ending
+            #print (print_string,end=ending)
         if flush: 
             self.view.set_read_only(False) 
             
@@ -65,8 +66,9 @@ class printtooutputwindowCommand(sublime_plugin.TextCommand):
             
             self.view.insert(edit, 0, self.output_text)
             self.view.show(sublime.Region(self.view.size()-2,self.view.size())) #scroll to the bottom
-            self.view.set_read_only(True)     
-                                 
+            self.view.set_read_only(True)   
+            self.output_text=""   
+                                    
 class sublinecompleteCommand(sublime_plugin.TextCommand):
 
     def run(self, edit):
@@ -119,12 +121,12 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
 
     def on_modified_async(self, view):
         global time_of_last_completion,previous_completion
-        if ((time()-time_of_last_completion)<1): return
-        time_of_last_completion=time()
+        #if ((time()-time_of_last_completion)<1): return
+        #time_of_last_completion=time()
         DBLineComplete.createWindow(view)
         syntax_name = DBLineComplete.getSyntaxName(view)
         if DBLineComplete.isSyntaxSupported(syntax_name) == False: return
-                                    
+                                   
         path = view.file_name()
         region = sublime.Region(0, view.size())
         lines = view.lines(region)
@@ -139,7 +141,7 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
         if len(matches)<1: 
             matches=DBLineComplete.text_python_line_database(target,syntax_name,addWildcardToStart=True)
         if len(matches)>0:
-            printToOutput ("\n\n -- Matches for: "+target+"--")   
+            printToOutput (" -- Matches for: "+target+"--")   
             #DBLineComplete.pp.pprint(matches)
             i = 1
             for match in matches:
@@ -156,7 +158,6 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
                     #print ("\t\t", end="")
                 i = i + 1
         printToOutput("",end="",flush=True)
-    
   
 
 class DBLineComplete(): 
@@ -212,8 +213,8 @@ class DBLineComplete():
         output_view = window_list[0] if len(window_list) else window.new_file()
         output_view.set_name("SublineComplete Output")
         output_view.set_syntax_file(view.settings().get('syntax'))
+        output_view.set_scratch(True)
 
-         
          
 def printToOutput(print_string,end="\n",flush=False):
     #if print_string=="": return
