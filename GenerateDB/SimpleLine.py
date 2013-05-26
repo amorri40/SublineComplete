@@ -12,8 +12,10 @@ import ast
 
 db = dbSettings.mysql_connect()
 db_cursor = db.cursor()
-syntax_name = "python"
+
+syntax_name = "java"
 table_name = syntax_name+"_line"
+
 hash_counts = dict()
 
 folders = syntaxSettings.syntax_folders[syntax_name+'_folders']
@@ -25,9 +27,17 @@ def getCount(hash_line):
     hash_counts[hash_line] = count
     return count
 
+def parse_folders(folder_name):
+    for dirname, dirnames, filenames in os.walk(folder_name):
+        # print path to all subdirectories first.
+        for subdirname in dirnames:
+            parse_folder(os.path.join(dirname, subdirname))
+
+        parse_folder(folder_name)
+
 def parse_folder(folder_name):
     os.chdir(folder_name)
-    for file_name in glob.glob("*.py"):
+    for file_name in glob.glob(syntaxSettings.syntax_globs[syntax_name]):
         print 'file:'+file_name
 
         lines = [line.strip() for line in open(file_name)]
@@ -60,5 +70,5 @@ def createTable(c,tableName):
 if __name__ == '__main__':
     createTable(db_cursor,table_name)
     for folder in folders:
-        parse_folder(folder)
+        parse_folders(folder)
 

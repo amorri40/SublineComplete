@@ -27,6 +27,7 @@
 ###################################################################################
 
 import sublime, sublime_plugin, re, sys, os, pprint
+from SublineComplete import syntaxSettings
 
 try:
     import pymysql
@@ -62,12 +63,15 @@ class sublinecompleteCommand(sublime_plugin.TextCommand):
                         begin = self.view.sel()[i].begin()-length
                         self.view.replace(edit, sublime.Region(begin, self.view.sel()[i].end()), matches[index])
       
+        syntax_name = DBLineComplete.getSyntaxName(self.view)
+        if DBLineComplete.isSyntaxSupported(syntax_name) == False: return
+
         #first get the line from the editor
         region = sublime.Region(0, self.view.size())
         lines = self.view.lines(region)
         target = DBLineComplete.get_target(self.view).strip()
 
-        matches=DBLineComplete.text_python_line_database(target,limit=100)
+        matches=DBLineComplete.text_python_line_database(target,syntax_name,limit=100)
         
         if len(matches)>0:
             sublime.active_window().active_view().show_popup_menu(matches,popup_callback)
@@ -85,15 +89,19 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
         return None
 
     def on_modified_async(self, view):
+        syntax_name = DBLineComplete.getSyntaxName(view)
+        if DBLineComplete.isSyntaxSupported(syntax_name) == False: return
+
         path = view.file_name()
         region = sublime.Region(0, view.size())
         lines = view.lines(region)
         target = view.line(view.sel()[0].begin())
         target = view.substr(target)
         target = target.strip() 
-        matches=DBLineComplete.text_python_line_database(target)
+        
+        matches=DBLineComplete.text_python_line_database(target,syntax_name)
         if len(matches)<1: 
-            matches=DBLineComplete.text_python_line_database(target,addWildcardToStart=True)
+            matches=DBLineComplete.text_python_line_database(target,syntax_name,addWildcardToStart=True)
         if len(matches)>0:
             print ("\n\n -- Matches for: "+target+"--")   
             #DBLineComplete.pp.pprint(matches)
@@ -116,7 +124,7 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
 
 class DBLineComplete(): 
 
-    def text_python_line_database(target,limit=30,asTuples=False,addWildcardToStart=False):
+    def text_python_line_database(target,syntax_name,limit=30,asTuples=False,addWildcardToStart=False):
                 
                 target=escape_characters(target)
                 if addWildcardToStart: target='%'+target
@@ -125,10 +133,13 @@ class DBLineComplete():
                 
                 if target == '':
                     limit = 30
+
+                syntax_name+='_line'
                 
-                query="SELECT Full_No_Spaces,Full_spaces, count FROM pythonline "
+                query="SELECT Full_No_Spaces,Full_spaces, count FROM "+syntax_name+" "
                 query+="WHERE Full_No_Spaces Like '"+target+"%'"
                 query+="ORDER BY count DESC LIMIT "+str(limit)
+                print
                 result=db_cursor.execute(query)
 
                 for row in db_cursor.fetchall():
@@ -146,7 +157,17 @@ class DBLineComplete():
         line = view.line(view.sel()[0].begin())
         return view.substr(line)
 
+    def getSyntaxName(view):
+        syntax_name = (view.settings().get('syntax')).replace('.tmLanguage','').lower()
+        syntax_name = os.path.basename(syntax_name)
+        return syntax_name
+
+    def isSyntaxSupported(syntax_name):
+        isSupported = syntax_name in syntaxSettings.syntax_folders
+        return isSupported  
+
 def escape_characters(string):
             line = ''.join(string.split())
             return line.replace('"','\\"').replace("'","\\'") .replace("%","\\%").replace("_","\\_")
 
+ 
