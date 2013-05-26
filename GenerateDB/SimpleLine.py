@@ -4,6 +4,7 @@ sys.path.append("..") #import python modules in parent directory
 
 import pymysql
 import dbSettings
+import syntaxSettings
 import glob
 import os
 import hashlib
@@ -15,7 +16,7 @@ syntax_name = "python"
 table_name = syntax_name+"_line"
 hash_counts = dict()
 
-folders = ["/System/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/"]
+folders = syntaxSettings.syntax_folders[syntax_name+'_folders']
 
 
 def getCount(hash_line):
