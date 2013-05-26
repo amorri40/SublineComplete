@@ -93,7 +93,7 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
         target = target.strip() 
         matches=DBLineComplete.text_python_line_database(target)
         if len(matches)<1: 
-            matches=DBLineComplete.text_python_line_database('%'+target)
+            matches=DBLineComplete.text_python_line_database(target,addWildcardToStart=True)
         if len(matches)>0:
             print ("\n\n -- Matches for: "+target+"--")   
             #DBLineComplete.pp.pprint(matches)
@@ -116,9 +116,10 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
 
 class DBLineComplete(): 
 
-    def text_python_line_database(target,limit=30,asTuples=False):
+    def text_python_line_database(target,limit=30,asTuples=False,addWildcardToStart=False):
                 
                 target=escape_characters(target)
+                if addWildcardToStart: target='%'+target
                  
                 matches=[]
                 
@@ -147,5 +148,5 @@ class DBLineComplete():
 
 def escape_characters(string):
             line = ''.join(string.split())
-            return line.replace('"','\\"').replace("'","\\'") .replace("%","\\%")
+            return line.replace('"','\\"').replace("'","\\'") .replace("%","\\%").replace("_","\\_")
 
