@@ -39,13 +39,37 @@ sys.path.append(os.path.dirname(__file__))
 import dbSettings
 db = dbSettings.mysql_connect()
 db_cursor=db.cursor()
+output_area="window" #window or console
+output_layout="column" #row or column
+outputView=0;
+output_view=0;
+   
+class printtooutputwindowCommand(sublime_plugin.TextCommand):
+    current_location=0
+    output_text=""
 
+    def run(self,edit):
+        return run(self,edit,"","\n")
+
+    def run(self, edit,print_string,ending,flush=False):
+        self.output_text+=print_string+ending
+        #print (print_string,end=ending)
+        if flush: 
+            self.view.set_read_only(False) 
+            
+            self.view.erase(edit, sublime.Region(0, self.view.size()))
+            self.view.sel().clear()
+            
+            self.view.insert(edit, 0, self.output_text)
+            self.view.show(sublime.Region(self.view.size()-2,self.view.size())) #scroll to the bottom
+            self.view.set_read_only(True)     
+                                 
 class sublinecompleteCommand(sublime_plugin.TextCommand):
 
     def run(self, edit):
 
         def popup_callback(index):
-            #sublime.message_dialog('popup_callback called!')
+
             if(index > -1):
                 for i in range(len(self.view.sel())):
                     line = self.view.line(self.view.sel()[i].begin())
@@ -62,7 +86,8 @@ class sublinecompleteCommand(sublime_plugin.TextCommand):
                         length = end - start
                         begin = self.view.sel()[i].begin()-length
                         self.view.replace(edit, sublime.Region(begin, self.view.sel()[i].end()), matches[index])
-      
+        DBLineComplete.createWindow(self.view)
+
         syntax_name = DBLineComplete.getSyntaxName(self.view)
         if DBLineComplete.isSyntaxSupported(syntax_name) == False: return
 
@@ -75,6 +100,7 @@ class sublinecompleteCommand(sublime_plugin.TextCommand):
         
         if len(matches)>0:
             sublime.active_window().active_view().show_popup_menu(matches,popup_callback)
+        
 
 
 class sublineCompleteEvent(sublime_plugin.EventListener):
@@ -89,9 +115,10 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
         return None
 
     def on_modified_async(self, view):
+        DBLineComplete.createWindow(view)
         syntax_name = DBLineComplete.getSyntaxName(view)
         if DBLineComplete.isSyntaxSupported(syntax_name) == False: return
-
+ 
         path = view.file_name()
         region = sublime.Region(0, view.size())
         lines = view.lines(region)
@@ -103,7 +130,7 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
         if len(matches)<1: 
             matches=DBLineComplete.text_python_line_database(target,syntax_name,addWildcardToStart=True)
         if len(matches)>0:
-            print ("\n\n -- Matches for: "+target+"--")   
+            printToOutput ("\n\n -- Matches for: "+target+"--")   
             #DBLineComplete.pp.pprint(matches)
             i = 1
             for match in matches:
@@ -114,13 +141,14 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
                     length = 50
                 
                 if (i % 3) == 0:
-                    print (str(i)+": " + match)
+                    printToOutput (str(i)+": " + match)
                 else:
-                    print (str(i)+": " + match + (" "*(55-length)), end= "")
+                    printToOutput (str(i)+": " + match + (" "*(55-length)), end= "")
                     #print ("\t\t", end="")
                 i = i + 1
-
-
+        printToOutput("",end="",flush=True)
+    
+  
 
 class DBLineComplete(): 
 
@@ -166,8 +194,30 @@ class DBLineComplete():
         isSupported = syntax_name in syntaxSettings.syntax_folders
         return isSupported  
 
+    def createWindow(view):
+        global output_view
+        if output_view: return
+        window = view.window()
+        wannabes = filter(lambda v: v.name() == ("SublineComplete Output"), window.views())
+        window_list=list(wannabes)
+        output_view = window_list[0] if len(window_list) else window.new_file()
+        output_view.set_name("SublineComplete Output")
+        output_view.set_syntax_file(view.settings().get('syntax'))
+
+         
+         
+def printToOutput(print_string,end="\n",flush=False):
+    #if print_string=="": return
+    ending=end
+    if output_layout == "column": ending = "\n"
+    if output_area == "window":
+        output_view.run_command("printtooutputwindow",{'print_string':print_string, 'ending':ending, 'flush':flush})
+    else:
+        print (print_string,end=ending)
+           
 def escape_characters(string):
             line = ''.join(string.split())
-            return line.replace('"','\\"').replace("'","\\'") .replace("%","\\%").replace("_","\\_")
-
+            line = line.replace('"','\\"').replace("'","\\'") .replace("%","\\%").replace("\\%\\%\\%","%").replace("_","\\_")
+            return line
+ 
  
