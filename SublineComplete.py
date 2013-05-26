@@ -65,7 +65,7 @@ class printtooutputwindowCommand(sublime_plugin.TextCommand):
             self.view.sel().clear()
             
             self.view.insert(edit, 0, self.output_text)
-            self.view.show(sublime.Region(self.view.size()-2,self.view.size())) #scroll to the bottom
+            #self.view.show(sublime.Region(self.view.size()-2,self.view.size())) #scroll to the bottom
             self.view.set_read_only(True)   
             self.output_text=""   
                                     
@@ -121,8 +121,8 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
 
     def on_modified_async(self, view):
         global time_of_last_completion,previous_completion
-        if ((time()-time_of_last_completion)<0.2): return
-        time_of_last_completion=time()
+        #if ((time()-time_of_last_completion)<0.2): return
+        #time_of_last_completion=time()
 
 
         DBLineComplete.createWindow(view)
@@ -141,11 +141,14 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
         previous_completion = target
         
         matches=DBLineComplete.text_python_line_database(target,syntax_name)
-        if len(matches)<1: 
-            matches=DBLineComplete.text_python_line_database(target,syntax_name,addWildcardToStart=True)
-        if len(matches)<1:
+        if len(matches)<5: 
+            matches.extend(DBLineComplete.text_python_line_database(target,syntax_name,addWildcardToStart=True))
+        if len(matches)<7:
+            target=DBLineComplete.getPreviousAndCurrentSymbol(view)
+            matches.extend(DBLineComplete.text_python_line_database(target,syntax_name,addWildcardToStart=True))
+        if len(matches)<10:
             target=DBLineComplete.getCurrentSymbol(view)
-            matches=DBLineComplete.text_python_line_database(target,syntax_name,addWildcardToStart=True)
+            matches.extend(DBLineComplete.text_python_line_database(target,syntax_name,addWildcardToStart=True))
         if len(matches)>0:
             printToOutput (" -- Matches for: "+target+"--")   
             
@@ -223,7 +226,20 @@ class DBLineComplete():
         selection_list = view.sel()
         selection = selection_list[0]
         return (view.substr(view.word(selection)))
+    
+    def getPreviousSymbol(view):
+        currentWord=DBLineComplete.getCurrentSymbol(view)
+        selection_list = view.sel()
+        selection = sublime.Region(selection_list[0].a-len(currentWord)-1,selection_list[0].b-len(currentWord)-1)
+        previous_word = view.substr(view.word(selection))
+        return (previous_word)
 
+    def getPreviousAndCurrentSymbol(view):
+        current_word = DBLineComplete.getCurrentSymbol(view)
+        previous_word = DBLineComplete.getPreviousSymbol(view)
+        query = previous_word + "%%%" + current_word
+        print ("both:"+query)
+        return (query)
 
 def printToOutput(print_string,end="\n",flush=False):
     #if print_string=="": return
@@ -238,5 +254,6 @@ def escape_characters(string):
             line = ''.join(string.split())
             line = line.replace('"','\\"').replace("'","\\'") .replace("%","\\%").replace("\\%\\%\\%","%").replace("_","\\_")
             return line
+
 
  
