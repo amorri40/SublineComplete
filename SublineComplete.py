@@ -121,12 +121,15 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
 
     def on_modified_async(self, view):
         global time_of_last_completion,previous_completion
-        #if ((time()-time_of_last_completion)<1): return
-        #time_of_last_completion=time()
+        if ((time()-time_of_last_completion)<0.2): return
+        time_of_last_completion=time()
+
+
         DBLineComplete.createWindow(view)
         syntax_name = DBLineComplete.getSyntaxName(view)
         if DBLineComplete.isSyntaxSupported(syntax_name) == False: return
-                                   
+        if (len(view.sel())<1): return
+                     
         path = view.file_name()
         region = sublime.Region(0, view.size())
         lines = view.lines(region)
@@ -140,9 +143,12 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
         matches=DBLineComplete.text_python_line_database(target,syntax_name)
         if len(matches)<1: 
             matches=DBLineComplete.text_python_line_database(target,syntax_name,addWildcardToStart=True)
+        if len(matches)<1:
+            target=DBLineComplete.getCurrentSymbol(view)
+            matches=DBLineComplete.text_python_line_database(target,syntax_name,addWildcardToStart=True)
         if len(matches)>0:
             printToOutput (" -- Matches for: "+target+"--")   
-            #DBLineComplete.pp.pprint(matches)
+            
             i = 1
             for match in matches:
                 
@@ -155,10 +161,8 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
                     printToOutput (str(i)+": " + match)
                 else:
                     printToOutput (str(i)+": " + match + (" "*(55-length)), end= "")
-                    #print ("\t\t", end="")
                 i = i + 1
         printToOutput("",end="",flush=True)
-  
 
 class DBLineComplete(): 
 
@@ -215,7 +219,12 @@ class DBLineComplete():
         output_view.set_syntax_file(view.settings().get('syntax'))
         output_view.set_scratch(True)
 
-         
+    def getCurrentSymbol(view):
+        selection_list = view.sel()
+        selection = selection_list[0]
+        return (view.substr(view.word(selection)))
+
+
 def printToOutput(print_string,end="\n",flush=False):
     #if print_string=="": return
     ending=end
@@ -229,5 +238,5 @@ def escape_characters(string):
             line = ''.join(string.split())
             line = line.replace('"','\\"').replace("'","\\'") .replace("%","\\%").replace("\\%\\%\\%","%").replace("_","\\_")
             return line
- 
+
  
