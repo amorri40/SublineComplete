@@ -34,6 +34,20 @@ def addToDB(db_cursor,table_name,hash_line, doc_type, doc_name, doc_string, pare
               [(hash_line, doc_type, doc_name, doc_string, parent)]
               )
 
+def parse_html_to_desc(html_tag):
+    #print (dir(html_tag))
+    children = list(html_tag.childGenerator())
+    output_string=""
+    for child in children:
+        if 'childGenerator' in dir(child) and len(list(child.childGenerator())) > 1:
+            output_string += parse_html_to_desc(child)
+        elif 'getText' in dir(child):
+            output_string += ' '+(child.getText().encode('utf-8'))
+        else:
+            output_string += (str(child))#(dir(child))
+    return output_string.lstrip()
+
+
 def parse_folder(folder_name):
     os.chdir(folder_name)
     for file_name in glob.glob('*.html'):
@@ -45,7 +59,7 @@ def parse_folder(folder_name):
 
         tags = soup.findAll('dl')
         try:
-            print (dir(tags[0]))
+            #print (dir(tags[0]))
             for tag in tags:
                 try:
                     
@@ -54,10 +68,12 @@ def parse_folder(folder_name):
                     #print ((tags[0]).fetchText())
                     contents = (tag).renderContents()
                     doc_string = contents
+                    doc_string = parse_html_to_desc(tag)
+                    #print (doc_string)
                     hash_line = hashlib.md5(str(doc_name)).hexdigest()
                     addToDB(db_cursor,table_name,hash_line, doc_type, doc_name, doc_string, '')
                 except KeyError: pass
-        except IndexError: pass
+        except IndexError: break
 
 if __name__ == '__main__':
     db = dbSettings.mysql_connect()

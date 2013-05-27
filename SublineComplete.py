@@ -107,91 +107,10 @@ class sublinecompleteCommand(sublime_plugin.TextCommand):
         
 
 
-class sublineCompleteEvent(sublime_plugin.EventListener):
-    dbline = DBLineComplete()
-    dbdoc = DBDocumentation()
-    
-    def on_query_completions(self, view, prefix, locations):
-        
-        #matches=DBLineComplete.text_python_line_database('%'+prefix,limit=5,asTuples=False)
-        #if len(matches)<1: 
-        #    return None
-        
-        #return (matches, sublime.INHIBIT_WORD_COMPLETIONS)
-        return None
 
-    def on_selection_modified_async(self,view):
-        #print("selection modified")
-        if (len(view.sel())<1): return
-        target = view.substr(view.sel()[0])
-        if len(target) < 3: return
-        print (target)
-        self.create_output_windows(view)
-        syntax_name = DBLineComplete.getSyntaxName(view)
-        self.dbdoc.writeDocumentation(view, target, syntax_name) 
-        return
-
-    def create_output_windows(self, view):
-        self.dbline.createWindow(view)
-        self.dbdoc.createDocWindow(view)
-
-    def on_modified_async(self, view):
-        global time_of_last_completion,previous_completion
-        #if ((time()-time_of_last_completion)<0.2): return
-        #time_of_last_completion=time()
-
-        self.create_output_windows(view)
-        
-        syntax_name = DBLineComplete.getSyntaxName(view)
-        if DBLineComplete.isSyntaxSupported(syntax_name) == False: return
-        if (len(view.sel())<1): return
-                      
-        path = view.file_name()
-        region = sublime.Region(0, view.size())
-        lines = view.lines(region)
-        target = view.line(view.sel()[0].begin())
-        target = view.substr(target)
-        target = target.strip() 
-        
-        if previous_completion == target: return #no point in displaying the same completion
-        previous_completion = target
-
-        
-        
-        matches=DBLineComplete.text_python_line_database(target,syntax_name)
-        #self.dbdoc.writeDocumentation(view, target, syntax_name) 
-        if len(matches)<5: 
-            
-            matches.extend(DBLineComplete.text_python_line_database(target,syntax_name,addWildcardToStart=True))
-        if len(matches)<7:
-            target=DBLineComplete.getPreviousAndCurrentSymbol(view)
-            matches.extend(DBLineComplete.text_python_line_database(target,syntax_name,addWildcardToStart=True))
-        if len(matches)<10:
-            target=DBLineComplete.getCurrentSymbol(view)
-            
-            matches.extend(DBLineComplete.text_python_line_database(target,syntax_name,addWildcardToStart=True))
-        if len(matches)>0:
-            self.dbline.printToOutput (" -- Matches for: "+target+"--")   
-            
-            i = 1
-            for match in matches:
-                
-                length = len(match)
-                if length >49:
-                    match = match[0:50]
-                    length = 50
-                
-                if (i % 3) == 0:
-                    self.dbline.printToOutput (str(i)+": " + match)
-                else:
-                    self.dbline.printToOutput (str(i)+": " + match + (" "*(55-length)), end= "")
-                i = i + 1
-        self.dbline.printToOutput("",end="",flush=True)
 
 class DBDocumentation():
     doc_view=0
-    def getDocString():
-        print ("get doc string")
 
     def createDocWindow(self,view):
         if self.doc_view: return
@@ -204,8 +123,7 @@ class DBDocumentation():
         self.doc_view.set_scratch(True)
 
     def writeDocumentation(self,view, target, syntax_name):
-        print ("writeDocumentation")
-        self.get_doc_from_database(target, syntax_name)
+        self.get_doc_from_database(target, syntax_name,addWildcardToStart=True)
         self.printToDocWindow(target,flush=True)
 
     def printToDocWindow(self,print_string,end="\n",flush=False):
@@ -235,8 +153,7 @@ class DBDocumentation():
             query="SELECT type, name, doc_string FROM "+syntax_name+" "
             query+="WHERE name Like '"+target+"%'"
             query+=" LIMIT 5"
-            #query+="ORDER BY count DESC LIMIT "+str(limit)
-            #print
+            
             result=db_cursor.execute(query)
 
             for row in db_cursor.fetchall():
@@ -327,7 +244,6 @@ class DBLineComplete():
         return (query)
 
     def printToOutput(self,print_string,end="\n",flush=False):
-        #if print_string=="": return
         ending=end
         if output_layout == "column": ending = "\n"
         if output_area == "window":
@@ -339,3 +255,84 @@ def escape_characters(string):
             line = ''.join(string.split())
             line = line.replace('"','\\"').replace("'","\\'") .replace("%","\\%").replace("\\%\\%\\%","%").replace("_","\\_")
             return line
+
+class sublineCompleteEvent(sublime_plugin.EventListener):
+    dbline = DBLineComplete()
+    dbdoc = DBDocumentation()
+    
+    def on_query_completions(self, view, prefix, locations):
+        
+        #matches=DBLineComplete.text_python_line_database('%'+prefix,limit=5,asTuples=False)
+        #if len(matches)<1: 
+        #    return None
+        
+        #return (matches, sublime.INHIBIT_WORD_COMPLETIONS)
+        return None
+
+    def on_selection_modified_async(self,view):
+        #print("selection modified")
+        if (len(view.sel())<1): return
+        target = view.substr(view.sel()[0])
+        if len(target) < 3: return
+        #print (target)
+        self.create_output_windows(view)
+        syntax_name = DBLineComplete.getSyntaxName(view)
+        self.dbdoc.writeDocumentation(view, target, syntax_name) 
+        return
+
+    def create_output_windows(self, view):
+        self.dbline.createWindow(view)
+        self.dbdoc.createDocWindow(view)
+
+    def on_modified_async(self, view):
+        global time_of_last_completion,previous_completion
+        #if ((time()-time_of_last_completion)<0.2): return
+        #time_of_last_completion=time()
+
+        self.create_output_windows(view)
+        
+        syntax_name = DBLineComplete.getSyntaxName(view)
+        if DBLineComplete.isSyntaxSupported(syntax_name) == False: return
+        if (len(view.sel())<1): return
+                      
+        path = view.file_name()
+        region = sublime.Region(0, view.size())
+        lines = view.lines(region)
+        target = view.line(view.sel()[0].begin())
+        target = view.substr(target)
+        target = target.strip() 
+        
+        if previous_completion == target: return #no point in displaying the same completion
+        previous_completion = target
+
+        
+        
+        matches=DBLineComplete.text_python_line_database(target,syntax_name)
+        #self.dbdoc.writeDocumentation(view, target, syntax_name) 
+        if len(matches)<5: 
+            
+            matches.extend(DBLineComplete.text_python_line_database(target,syntax_name,addWildcardToStart=True))
+        if len(matches)<7:
+            target=DBLineComplete.getPreviousAndCurrentSymbol(view)
+            matches.extend(DBLineComplete.text_python_line_database(target,syntax_name,addWildcardToStart=True))
+        if len(matches)<10:
+            target=DBLineComplete.getCurrentSymbol(view)
+            
+            matches.extend(DBLineComplete.text_python_line_database(target,syntax_name,addWildcardToStart=True))
+        if len(matches)>0:
+            self.dbline.printToOutput (" -- Matches for: "+target+"--")   
+            
+            i = 1
+            for match in matches:
+                
+                length = len(match)
+                if length >49:
+                    match = match[0:50]
+                    length = 50
+                
+                if (i % 3) == 0:
+                    self.dbline.printToOutput (str(i)+": " + match)
+                else:
+                    self.dbline.printToOutput (str(i)+": " + match + (" "*(55-length)), end= "")
+                i = i + 1
+        self.dbline.printToOutput("",end="",flush=True)
