@@ -34,6 +34,7 @@ def addToDB(db_cursor,table_name,hash_line, doc_type, doc_name, doc_string, pare
               [(hash_line, doc_type, doc_name, doc_string, parent)]
               )
 
+# parse_html_to_desc converts a html_tag into a string, adding spaces between elements
 def parse_html_to_desc(html_tag):
     #print (dir(html_tag))
     children = list(html_tag.childGenerator())
@@ -47,33 +48,55 @@ def parse_html_to_desc(html_tag):
             output_string += (str(child))#(dir(child))
     return output_string.lstrip()
 
+def hash_string(_string):
+    return hashlib.md5(str(_string)).hexdigest()
+
+def parse_sphinx(url):
+    #loop over pages
+    page = urllib2.urlopen(url)
+    print (url)
+    soup = BeautifulSoup(page)
+
+    #first get the main docstring of the module
+    section = soup.findAll(attrs={"class" : "section"})
+    doc_name = section[0]['id'].replace('module-','')
+    
+    module_text=""
+    for tag in section[0]:
+        if 'name' in dir(tag) and tag.name == 'p': #all the p tags are part of the module description
+         module_text += ' '+parse_html_to_desc(tag)
+    
+    #now write this module to the database
+    addToDB(db_cursor,table_name, hash_string(module_text), 'module', doc_name, module_text, '')
+    
+
+    #now get all functions/variables
+    tags = soup.findAll('dl')
+    try:
+        #print (dir(tags[0]))
+        for tag in tags:
+            try:
+                
+                doc_name = (tag.findChild('dt')['id'])
+                doc_type = (tag['class'])
+                #print ((tags[0]).fetchText())
+                contents = (tag).renderContents()
+                doc_string = contents
+                doc_string = parse_html_to_desc(tag)
+                #print (doc_string)
+                hash_line = hashlib.md5(str(doc_name)).hexdigest()
+                addToDB(db_cursor,table_name,hash_line, doc_type, doc_name, doc_string, '')
+            except KeyError: pass
+    except IndexError: pass
 
 def parse_folder(folder_name):
     os.chdir(folder_name)
+    folder_name = 'file://'+folder_name
     for file_name in glob.glob('*.html'):
-        url=os.path.join('file://'+folder_name, file_name)
-        #loop over pages
-        page = urllib2.urlopen(url)
-        print (url)
-        soup = BeautifulSoup(page)
+        url=os.path.join(folder_name, file_name)
+        parse_sphinx(url)
 
-        tags = soup.findAll('dl')
-        try:
-            #print (dir(tags[0]))
-            for tag in tags:
-                try:
-                    
-                    doc_name = (tag.findChild('dt')['id'])
-                    doc_type = (tag['class'])
-                    #print ((tags[0]).fetchText())
-                    contents = (tag).renderContents()
-                    doc_string = contents
-                    doc_string = parse_html_to_desc(tag)
-                    #print (doc_string)
-                    hash_line = hashlib.md5(str(doc_name)).hexdigest()
-                    addToDB(db_cursor,table_name,hash_line, doc_type, doc_name, doc_string, '')
-                except KeyError: pass
-        except IndexError: break
+python_doc_folders = ['http://omz-software.com/pythonista/docs/ios/beautifulsoup_ref.html', '/Volumes/Macintosh HD/Users/alasdairmorrison/Downloads/python-2.7.5-docs-html/library/']
 
 if __name__ == '__main__':
     db = dbSettings.mysql_connect()
@@ -83,4 +106,8 @@ if __name__ == '__main__':
     table_name = syntax_name+"_doc"
     createTable(db_cursor,table_name)
 
-    parse_folder('/Volumes/Macintosh HD/Users/alasdairmorrison/Downloads/python-2.7.5-docs-html/library/')
+    for folder in python_doc_folders:
+        if folder.startswith('http:/'):
+            parse_sphinx(folder)
+        else:
+            parse_folder(folder)

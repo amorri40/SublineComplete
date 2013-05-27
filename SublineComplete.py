@@ -123,8 +123,10 @@ class DBDocumentation():
         self.doc_view.set_scratch(True)
 
     def writeDocumentation(self,view, target, syntax_name):
-        self.get_doc_from_database(target, syntax_name,addWildcardToStart=True)
-        self.printToDocWindow(target,flush=True)
+        num_of_doc_results = self.get_doc_from_database(target, syntax_name,addWildcardToStart=False)
+        if num_of_doc_results < 1:
+            self.get_doc_from_database(target, syntax_name,addWildcardToStart=True)
+        self.printToDocWindow("",end="",flush=True)
 
     def printToDocWindow(self,print_string,end="\n",flush=False):
         ending=end
@@ -167,7 +169,7 @@ class DBDocumentation():
                 else:
                     matches.append(doc_string)
                            
-            return matches
+            return len(matches)
 
 class DBLineComplete(): 
     output_view=0; #output view for line completions
