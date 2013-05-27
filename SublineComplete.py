@@ -43,7 +43,7 @@ db_cursor=db.cursor()
 output_area="window" #window or console
 output_layout="column" #row or column
 outputView=0;
-output_view=0;
+
 time_of_last_completion=time()
 previous_completion=""
    
@@ -109,6 +109,8 @@ class sublinecompleteCommand(sublime_plugin.TextCommand):
 
 
 class sublineCompleteEvent(sublime_plugin.EventListener):
+    dbline = DBLineComplete()
+    dbdoc = DBDocumentation()
     
     def on_query_completions(self, view, prefix, locations):
         
@@ -119,17 +121,22 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
         #return (matches, sublime.INHIBIT_WORD_COMPLETIONS)
         return None
 
+    def on_selection_modified_async(self,view):
+        #print("selection modified")
+        return
+
     def on_modified_async(self, view):
         global time_of_last_completion,previous_completion
         #if ((time()-time_of_last_completion)<0.2): return
         #time_of_last_completion=time()
 
-
-        DBLineComplete.createWindow(view)
+ 
+        self.dbline.createWindow(view)
+        self.dbdoc.createDocWindow(view)
         syntax_name = DBLineComplete.getSyntaxName(view)
         if DBLineComplete.isSyntaxSupported(syntax_name) == False: return
         if (len(view.sel())<1): return
-                     
+                      
         path = view.file_name()
         region = sublime.Region(0, view.size())
         lines = view.lines(region)
@@ -139,18 +146,23 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
         
         if previous_completion == target: return #no point in displaying the same completion
         previous_completion = target
+
+        
         
         matches=DBLineComplete.text_python_line_database(target,syntax_name)
+        self.dbdoc.writeDocumentation(view, target, syntax_name) 
         if len(matches)<5: 
+            
             matches.extend(DBLineComplete.text_python_line_database(target,syntax_name,addWildcardToStart=True))
         if len(matches)<7:
             target=DBLineComplete.getPreviousAndCurrentSymbol(view)
             matches.extend(DBLineComplete.text_python_line_database(target,syntax_name,addWildcardToStart=True))
         if len(matches)<10:
             target=DBLineComplete.getCurrentSymbol(view)
+            
             matches.extend(DBLineComplete.text_python_line_database(target,syntax_name,addWildcardToStart=True))
         if len(matches)>0:
-            printToOutput (" -- Matches for: "+target+"--")   
+            self.dbline.printToOutput (" -- Matches for: "+target+"--")   
             
             i = 1
             for match in matches:
@@ -161,13 +173,74 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
                     length = 50
                 
                 if (i % 3) == 0:
-                    printToOutput (str(i)+": " + match)
+                    self.dbline.printToOutput (str(i)+": " + match)
                 else:
-                    printToOutput (str(i)+": " + match + (" "*(55-length)), end= "")
+                    self.dbline.printToOutput (str(i)+": " + match + (" "*(55-length)), end= "")
                 i = i + 1
-        printToOutput("",end="",flush=True)
+        self.dbline.printToOutput("",end="",flush=True)
+
+class DBDocumentation():
+    doc_view=0
+    def getDocString():
+        print ("get doc string")
+
+    def createDocWindow(self,view):
+        if self.doc_view: return
+        window = view.window()
+        wannabes = filter(lambda v: v.name() == ("SublineDoc Output"), window.views())
+        window_list=list(wannabes)
+        self.doc_view = window_list[0] if len(window_list) else window.new_file()
+        self.doc_view.set_name("SublineDoc Output")
+        self.doc_view.set_syntax_file(view.settings().get('syntax'))
+        self.doc_view.set_scratch(True)
+
+    def writeDocumentation(self,view, target, syntax_name):
+        print ("writeDocumentation")
+        self.get_doc_from_database(target, syntax_name)
+        self.printToDocWindow(target,flush=True)
+
+    def printToDocWindow(self,print_string,end="\n",flush=False):
+        ending=end
+        if output_layout == "column": ending = "\n"
+        if output_area == "window":
+            self.doc_view.run_command("printtooutputwindow",{'print_string':print_string, 'ending':ending, 'flush':flush})
+        else:
+            print (print_string,end=ending) 
+
+    def get_doc_from_database(self, target,syntax_name,limit=30,asTuples=False,addWildcardToStart=False):
+            
+            target=escape_characters(target)
+            if addWildcardToStart: target='%'+target
+             
+            matches=[]
+            
+            if target == '':
+                limit = 30
+
+            syntax_name+='_doc'
+            
+            query="SELECT type, name, doc_string FROM "+syntax_name+" "
+            query+="WHERE name Like '"+target+"%'"
+            query+=" LIMIT 5"
+            #query+="ORDER BY count DESC LIMIT "+str(limit)
+            #print
+            result=db_cursor.execute(query)
+
+            for row in db_cursor.fetchall():
+                _type = row[0]
+                _name = row[1]
+                doc_string = row[2]
+                doc_string = "\n === "+_name+" === \n"+doc_string+"\n"
+                self.printToDocWindow(doc_string)
+                if asTuples:
+                    matches.append((doc_string,))
+                else:
+                    matches.append(doc_string)
+                           
+            return matches
 
 class DBLineComplete(): 
+    output_view=0; #output view for line completions
 
     def text_python_line_database(target,syntax_name,limit=30,asTuples=False,addWildcardToStart=False):
                 
@@ -211,16 +284,15 @@ class DBLineComplete():
         isSupported = syntax_name in syntaxSettings.syntax_folders
         return isSupported  
 
-    def createWindow(view):
-        global output_view
-        if output_view: return
+    def createWindow(self,view):
+        if self.output_view: return
         window = view.window()
         wannabes = filter(lambda v: v.name() == ("SublineComplete Output"), window.views())
         window_list=list(wannabes)
-        output_view = window_list[0] if len(window_list) else window.new_file()
-        output_view.set_name("SublineComplete Output")
-        output_view.set_syntax_file(view.settings().get('syntax'))
-        output_view.set_scratch(True)
+        self.output_view = window_list[0] if len(window_list) else window.new_file()
+        self.output_view.set_name("SublineComplete Output")
+        self.output_view.set_syntax_file(view.settings().get('syntax'))
+        self.output_view.set_scratch(True)
 
     def getCurrentSymbol(view):
         selection_list = view.sel()
@@ -241,19 +313,17 @@ class DBLineComplete():
         print ("both:"+query)
         return (query)
 
-def printToOutput(print_string,end="\n",flush=False):
-    #if print_string=="": return
-    ending=end
-    if output_layout == "column": ending = "\n"
-    if output_area == "window":
-        output_view.run_command("printtooutputwindow",{'print_string':print_string, 'ending':ending, 'flush':flush})
-    else:
-        print (print_string,end=ending)
+    def printToOutput(self,print_string,end="\n",flush=False):
+        #if print_string=="": return
+        ending=end
+        if output_layout == "column": ending = "\n"
+        if output_area == "window":
+            self.output_view.run_command("printtooutputwindow",{'print_string':print_string, 'ending':ending, 'flush':flush})
+        else:
+            print (print_string,end=ending) 
             
 def escape_characters(string):
             line = ''.join(string.split())
             line = line.replace('"','\\"').replace("'","\\'") .replace("%","\\%").replace("\\%\\%\\%","%").replace("_","\\_")
             return line
 
-
- 
