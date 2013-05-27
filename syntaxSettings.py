@@ -9,4 +9,7 @@ syntax_globs = {
 	'python' : "*.py",
 	'java' : "*.java"
 }
- 
+
+syntax_docs = {
+	'python' : ['http://docs.python.org/3.2/library/']
+ }

@@ -42,7 +42,6 @@ db = dbSettings.mysql_connect()
 db_cursor=db.cursor()
 output_area="window" #window or console
 output_layout="column" #row or column
-outputView=0;
 
 time_of_last_completion=time()
 previous_completion=""
@@ -123,16 +122,26 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
 
     def on_selection_modified_async(self,view):
         #print("selection modified")
+        if (len(view.sel())<1): return
+        target = view.substr(view.sel()[0])
+        if len(target) < 3: return
+        print (target)
+        self.create_output_windows(view)
+        syntax_name = DBLineComplete.getSyntaxName(view)
+        self.dbdoc.writeDocumentation(view, target, syntax_name) 
         return
+
+    def create_output_windows(self, view):
+        self.dbline.createWindow(view)
+        self.dbdoc.createDocWindow(view)
 
     def on_modified_async(self, view):
         global time_of_last_completion,previous_completion
         #if ((time()-time_of_last_completion)<0.2): return
         #time_of_last_completion=time()
 
- 
-        self.dbline.createWindow(view)
-        self.dbdoc.createDocWindow(view)
+        self.create_output_windows(view)
+        
         syntax_name = DBLineComplete.getSyntaxName(view)
         if DBLineComplete.isSyntaxSupported(syntax_name) == False: return
         if (len(view.sel())<1): return
@@ -150,7 +159,7 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
         
         
         matches=DBLineComplete.text_python_line_database(target,syntax_name)
-        self.dbdoc.writeDocumentation(view, target, syntax_name) 
+        #self.dbdoc.writeDocumentation(view, target, syntax_name) 
         if len(matches)<5: 
             
             matches.extend(DBLineComplete.text_python_line_database(target,syntax_name,addWildcardToStart=True))
@@ -207,8 +216,12 @@ class DBDocumentation():
         else:
             print (print_string,end=ending) 
 
+    def isSyntaxSupported(self, syntax_name):
+        isSupported = syntax_name in syntaxSettings.syntax_docs
+        return isSupported 
+
     def get_doc_from_database(self, target,syntax_name,limit=30,asTuples=False,addWildcardToStart=False):
-            
+            if self.isSyntaxSupported(syntax_name) == False: return
             target=escape_characters(target)
             if addWildcardToStart: target='%'+target
              
@@ -310,7 +323,7 @@ class DBLineComplete():
         current_word = DBLineComplete.getCurrentSymbol(view)
         previous_word = DBLineComplete.getPreviousSymbol(view)
         query = previous_word + "%%%" + current_word
-        print ("both:"+query)
+        #print ("both:"+query)
         return (query)
 
     def printToOutput(self,print_string,end="\n",flush=False):
@@ -326,4 +339,3 @@ def escape_characters(string):
             line = ''.join(string.split())
             line = line.replace('"','\\"').replace("'","\\'") .replace("%","\\%").replace("\\%\\%\\%","%").replace("_","\\_")
             return line
-
