@@ -26,6 +26,8 @@ def addToDB(db_cursor,table_name,hash_line, doc_type, doc_name, doc_string, pare
               [(hash_line, doc_type, doc_name, doc_string, parent)]
               )
 
+
+
 if __name__ == '__main__':
     db = dbSettings.mysql_connect()
     db_cursor = db.cursor()
@@ -46,13 +48,17 @@ if __name__ == '__main__':
             #print ("Doc:"+doc_string)
             functions = dir(mod)
             for function in functions:
-                attribute = getattr(mod,function)
-                func_type = str(type(attribute).__name__)
-                doc_string = attribute.__doc__
-                hash_line = hashlib.md5(doc_string).digest()
-                addToDB(db_cursor,table_name,hash_line, func_type, function, doc_string, module_name)
-                #print mod[function].__doc__
+                try:
+                    attribute = getattr(mod,function)
+                    func_type = str(type(attribute).__name__)
+                    doc_string = attribute.__doc__
+                    hash_line = hashlib.md5(doc_string).digest()
+                    addToDB(db_cursor,table_name,hash_line, func_type, function, doc_string, module_name)
+                except: continue
             print (functions)
-        except:
+        except SyntaxError:
             continue
+        except ImportError: pass
+        except TypeError: pass
+        except AttributeError: pass
 
