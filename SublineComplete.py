@@ -29,6 +29,8 @@
 import sublime, sublime_plugin, re, sys, os, pprint
 from SublineComplete import syntaxSettings
 from time import time
+from threading import Timer
+import threading
 
 try:
     import pymysql
@@ -111,9 +113,9 @@ class sublinecompleteCommand(sublime_plugin.TextCommand):
 
 class DBDocumentation():
     doc_view=0
-
+ 
     def createDocWindow(self,view):
-        if self.doc_view: return
+        #if self.doc_view: return
         window = view.window()
         wannabes = filter(lambda v: v.name() == ("SublineDoc Output"), window.views())
         window_list=list(wannabes)
@@ -217,8 +219,9 @@ class DBLineComplete():
         return isSupported  
 
     def createWindow(self,view):
-        if self.output_view: return
+        #if self.output_view: return
         window = view.window()
+        if window is None: return
         wannabes = filter(lambda v: v.name() == ("SublineComplete Output"), window.views())
         window_list=list(wannabes)
         self.output_view = window_list[0] if len(window_list) else window.new_file()
@@ -261,6 +264,10 @@ def escape_characters(string):
 class sublineCompleteEvent(sublime_plugin.EventListener):
     dbline = DBLineComplete()
     dbdoc = DBDocumentation()
+    modified_timer=None
+    selection_timer=None
+    current_view=None
+    lock = threading.Lock()#lock database access
     
     def on_query_completions(self, view, prefix, locations):
         
@@ -271,26 +278,47 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
         #return (matches, sublime.INHIBIT_WORD_COMPLETIONS)
         return None
 
+
     def on_selection_modified_async(self,view):
+        self.current_view=view
+        
+        if not self.selection_timer is None: self.selection_timer.cancel()
+        self.selection_timer = Timer(0.1, self.run_query_selection_modified)
+        self.selection_timer.start()
+
+    def run_query_selection_modified(self):
         #print("selection modified")
+        
+        view=self.current_view
         if (len(view.sel())<1): return
         target = view.substr(view.sel()[0])
         if len(target) < 3: return
         #print (target)
         self.create_output_windows(view)
+        self.lock.acquire()
         syntax_name = DBLineComplete.getSyntaxName(view)
         self.dbdoc.writeDocumentation(view, target, syntax_name) 
+        self.lock.release()
         return
 
     def create_output_windows(self, view):
+        self.lock.acquire()
         self.dbline.createWindow(view)
         self.dbdoc.createDocWindow(view)
+        self.lock.release()
 
     def on_modified_async(self, view):
+        self.current_view=view
+        
+        if not self.modified_timer is None: self.modified_timer.cancel()
+        self.modified_timer = Timer(0.5, self.run_query_onmodified)
+        self.modified_timer.start()   
+ 
+    def run_query_onmodified(self):
         global time_of_last_completion,previous_completion
         #if ((time()-time_of_last_completion)<0.2): return
         #time_of_last_completion=time()
-
+        view=self.current_view
         self.create_output_windows(view)
         
         syntax_name = DBLineComplete.getSyntaxName(view)
@@ -308,7 +336,7 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
         previous_completion = target
 
         
-        
+        self.lock.acquire()
         matches=DBLineComplete.text_python_line_database(target,syntax_name)
         #self.dbdoc.writeDocumentation(view, target, syntax_name) 
         if len(matches)<5: 
@@ -338,3 +366,5 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
                     self.dbline.printToOutput (str(i)+": " + match + (" "*(55-length)), end= "")
                 i = i + 1
         self.dbline.printToOutput("",end="",flush=True)
+        self.lock.release()
+        
