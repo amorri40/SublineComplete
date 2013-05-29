@@ -38,7 +38,7 @@ def setupMysql(syntax_name):
     return db_cursor
 
 def hash_string(_string):
-    return hashlib.md5(str(_string)).hexdigest()
+    return hashlib.md5(_string.encode('utf-8')).hexdigest()
 
 #
 # converts a html_tag into a string, adding spaces between elements
@@ -103,6 +103,8 @@ def parseDLTags(tag, parse_dt, parse_dd):
     
     return return_list
 
+def isList(_var):
+    return (type(_var).__name__) == 'list'
 
 def getSoupFromUrl(url):
     page = urllib2.urlopen(url)
