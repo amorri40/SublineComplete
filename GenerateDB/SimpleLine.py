@@ -13,13 +13,16 @@ import ast
 db = dbSettings.mysql_connect()
 db_cursor = db.cursor()
 
-syntax_name = "java"
+syntax_name = "python"
 table_name = syntax_name+"_line"
 
 hash_counts = dict()
+file_hashs = []
 
-folders = syntaxSettings.syntax_folders[syntax_name+'_folders']
+folders = syntaxSettings.syntax_folders[syntax_name]
 
+def hash_string(_string):
+    return hashlib.md5(str(_string)).hexdigest()
 
 def getCount(hash_line):
     global hash_counts
@@ -36,11 +39,17 @@ def parse_folders(folder_name):
         parse_folder(folder_name)
 
 def parse_folder(folder_name):
+    global file_hashs
     os.chdir(folder_name)
     for file_name in glob.glob(syntaxSettings.syntax_globs[syntax_name]):
-        print 'file:'+file_name
+        
 
         lines = [line.strip() for line in open(file_name)]
+        _hash=hash_string(file_name)
+
+        if _hash in file_hashs: continue
+        file_hashs.append(hash_string(file_name))
+        print 'file:'+file_name
         for line in lines:
             if line == '':
                 continue
@@ -65,6 +74,7 @@ def createTable(c,tableName):
       `count` int NOT NULL,
       UNIQUE KEY `hash_line` (`hash_line`)
     ) ENGINE=MyISAM DEFAULT CHARSET=latin1;""");
+    c.execute("""ALTER TABLE """+tableName+""" ADD FULLTEXT(Full_No_Spaces);""")
 
 
 if __name__ == '__main__':

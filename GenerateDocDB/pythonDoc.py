@@ -34,9 +34,11 @@ def addToDB(db_cursor,table_name,hash_line, doc_type, doc_name, doc_string, pare
               [(hash_line, doc_type, doc_name, doc_string, parent)]
               )
 
+#
 # parse_html_to_desc converts a html_tag into a string, adding spaces between elements
+#
 def parse_html_to_desc(html_tag):
-    #print (dir(html_tag))
+    
     children = list(html_tag.childGenerator())
     output_string=""
     for child in children:
@@ -54,36 +56,37 @@ def hash_string(_string):
 def parse_sphinx(url):
     #loop over pages
     page = urllib2.urlopen(url)
-    print (url)
+    print (url) #good to display the status of what file we are on
     soup = BeautifulSoup(page)
 
     #first get the main docstring of the module
-    section = soup.findAll(attrs={"class" : "section"})
-    doc_name = section[0]['id'].replace('module-','')
-    
-    module_text=""
-    for tag in section[0]:
-        if 'name' in dir(tag) and tag.name == 'p': #all the p tags are part of the module description
-         module_text += ' '+parse_html_to_desc(tag)
-    
-    #now write this module to the database
-    addToDB(db_cursor,table_name, hash_string(module_text), 'module', doc_name, module_text, '')
+    sections = soup.findAll(attrs={"class" : "section"}) #the main sections contains info on the module
+    for section in sections:
+        doc_name = section['id'].replace('module-','')
+        
+        module_text=""
+        for tag in section:
+            if 'name' in dir(tag) and tag.name == 'p': #all the p tags are part of the module description
+             module_text += ' '+parse_html_to_desc(tag)
+        
+        #now write this module to the database
+        addToDB(db_cursor,table_name, hash_string(module_text), 'module', doc_name, module_text, '')
     
 
     #now get all functions/variables
     tags = soup.findAll('dl')
     try:
-        #print (dir(tags[0]))
+        
         for tag in tags:
             try:
                 
                 doc_name = (tag.findChild('dt')['id'])
                 doc_type = (tag['class'])
-                #print ((tags[0]).fetchText())
+                
                 contents = (tag).renderContents()
                 doc_string = contents
                 doc_string = parse_html_to_desc(tag)
-                #print (doc_string)
+                
                 hash_line = hashlib.md5(str(doc_name)).hexdigest()
                 addToDB(db_cursor,table_name,hash_line, doc_type, doc_name, doc_string, '')
             except KeyError: pass
