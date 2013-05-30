@@ -36,9 +36,14 @@ from SublineComplete import syntaxSettings
 from time import time
 from threading import Timer
 import threading
+import json
+import requests
+import urllib
+
 
 try:
     import pymysql
+
 except Exception:
     print(sys.path)
     sys.path.extend(
@@ -46,7 +51,10 @@ except Exception:
                     '/usr/local/Cellar/python3/3.2.3/Frameworks/Python.framework/Versions/3.2/lib/python3.2/plat-darwin', '/usr/local/Cellar/python3/3.2.3/Frameworks/Python.framework/Versions/3.2/lib/python3.2/lib-dynload', '/usr/local/Cellar/python3/3.2.3/Frameworks/Python.framework/Versions/3.2/lib/python3.2/site-packages', '/usr/local/Cellar/python3/3.2.3/Frameworks/Python.framework/Versions/3.2/lib/python3.2/site-packages/setuptools-0.6c11-py3.2.egg-info'])
     import pymysql
 sys.path.append(os.path.dirname(__file__))
+
 import dbSettings
+
+
 db = dbSettings.mysql_connect()
 db_cursor = db.cursor()
 output_area = "window"  # window or console
@@ -120,6 +128,7 @@ class sublinecompleteCommand(sublime_plugin.TextCommand):
 
 class DBDocumentation():
     doc_view = None
+    last_query = ""
 
     def createDocWindow(self,view):
         window = view.window()
@@ -135,10 +144,17 @@ class DBDocumentation():
         self.doc_view.set_scratch(True)
 
     def writeDocumentation(self,view, target, syntax_name):
-        num_of_doc_results = self.get_doc_from_database(target, syntax_name,addWildcardToStart=False)
-        if num_of_doc_results is None: return
-        if num_of_doc_results < 1:
-            self.get_doc_from_database(target, syntax_name,addWildcardToStart=True)
+        if self.last_query == target: return
+        self.last_query = target
+
+        if target.lower().find('so:') == 0: #get from stackoverflow
+            
+            self.searchStackOverflow(target.replace('so:','',1), syntax_name)
+        else: #get from mysql database
+            num_of_doc_results = self.get_doc_from_database(target, syntax_name,addWildcardToStart=False)
+            if num_of_doc_results is None: return
+            if num_of_doc_results < 1:
+                self.get_doc_from_database(target, syntax_name,addWildcardToStart=True)
         self.printToDocWindow("",end="",flush=True)
 
     def printToDocWindow(self,print_string,end="\n",flush=False):
@@ -183,6 +199,26 @@ class DBDocumentation():
                     matches.append(doc_string)
 
             return len(matches)
+
+    def searchStackOverflow(self, query, syntax_name):
+        query = urllib.parse.quote_plus(query)
+        
+        url = 'https://api.stackexchange.com/2.1/search?order=desc&sort=relevance&tagged='+syntax_name+'&intitle='+query+'&site=stackoverflow'
+        print (url)
+        r = requests.get(url)
+        json_lines = r.json()
+        doc_string = ""
+
+        for question in json_lines['items']:
+            doc_string = "=== "+(question['title'])+" ===\n"
+            doc_string += (question['link']) + "\n"
+            self.printToDocWindow(doc_string)
+
+        num_results = len(json_lines['items'])
+        doc_string = str(num_results)+" stackoverflow results"
+        self.printToDocWindow(doc_string)
+        
+        
 
 
 class DBLineComplete():
@@ -345,7 +381,7 @@ class sublineCompleteEvent(sublime_plugin.EventListener):
         if self.dbline.isSyntaxSupportedForView(view) == False:
             return
         self.current_view = view
-        print(view.name())
+        
         if not self.modified_timer is None:
             self.modified_timer.cancel()
         self.modified_timer = Timer(1.00, self.run_query_onmodified)
