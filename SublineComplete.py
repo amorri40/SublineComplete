@@ -203,7 +203,9 @@ class DBDocumentation():
     def searchStackOverflow(self, query, syntax_name):
         query = urllib.parse.quote_plus(query)
         
-        url = 'https://api.stackexchange.com/2.1/search?order=desc&sort=relevance&tagged='+syntax_name+'&intitle='+query+'&site=stackoverflow'
+        url = 'https://api.stackexchange.com/2.1/search?order=desc&sort=relevance&intitle='+query+'&site=stackoverflow'
+        url += '&tagged='+syntax_name
+        url += '&filter=!-MBk)KIT68_oQ-v.iWgosF1Mx6JqXr25w'
         print (url)
         r = requests.get(url)
         json_lines = r.json()
@@ -212,13 +214,22 @@ class DBDocumentation():
         for question in json_lines['items']:
             doc_string = "=== "+(question['title'])+" ===\n"
             doc_string += (question['link']) + "\n"
+            doc_string += "    "+self.parseSOHTML(question['body']) + "\n"
+            doc_string += "== First Answer ==\n    "+self.parseSOHTML(question['answers'][0]['body']) + "\n"
+            
             self.printToDocWindow(doc_string)
 
         num_results = len(json_lines['items'])
         doc_string = str(num_results)+" stackoverflow results"
         self.printToDocWindow(doc_string)
-        
-        
+    
+    def parseSOHTML(self, html):
+        html = html.replace('\n\n','\n').replace('\n','\n    ')
+        #html = html.replace('<code>','\n').replace('</code>','\n')
+        html = html.replace('<p>','').replace('</p>','')
+        html = html.replace('<pre>','').replace('</pre>','')
+        html = html.replace('&gt;','>').replace('&lt;','<')
+        return html
 
 
 class DBLineComplete():
